@@ -143,8 +143,7 @@ export async function verifyPhoneOtp(
   const storedOtp = ACTIVE_OTPS[phoneDigits] || (phoneDigits.length >= 8 ? ACTIVE_OTPS[phoneDigits.slice(-8)] : undefined);
   const isValidCode =
     codeClean === '1234' ||
-    (storedOtp && storedOtp.code === codeClean && storedOtp.expiresAt > Date.now()) ||
-    /^\d{4}$/.test(codeClean);
+    (storedOtp && storedOtp.code === codeClean && storedOtp.expiresAt > Date.now());
 
   if (!isValidCode) {
     return {
