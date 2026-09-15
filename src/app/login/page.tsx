@@ -34,7 +34,7 @@ function LoginContent() {
     }
   }, [searchParams, router]);
 
-  const handleRequestOtp = (e?: React.FormEvent) => {
+  const handleRequestOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!phoneInput.trim()) {
       setErrorMsg('Por favor ingresa tu número de celular o WhatsApp.');
@@ -42,7 +42,7 @@ function LoginContent() {
     }
 
     setErrorMsg('');
-    const { waUrl } = requestPhoneOtp(phoneInput);
+    const { waUrl } = await requestPhoneOtp(phoneInput);
     setStep(2);
     // Abrir WhatsApp para recibir el código de Sarita IA
     window.open(waUrl, '_blank');

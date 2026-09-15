@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 5. SI LA TIENDA SÍ EXISTE -> Generar OTP y enlace de 1-clic
-    const { code } = requestPhoneOtp(phoneDigits);
+    const { code } = await requestPhoneOtp(phoneDigits);
     const loginUrl = `${origin}/login?phone=${phoneDigits}&otp=${code}`;
     const mensajeExiste = `¡Hola! 👋 Tu código de acceso para *${targetStore.nombre}* es: *${code}* (válido por 10 min).\n\nO ingresa con 1-clic directo a tu panel aquí:\n👉 ${loginUrl}`;
 

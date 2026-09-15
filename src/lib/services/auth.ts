@@ -1,5 +1,6 @@
 import { RolUsuario } from '../types';
 import { getTiendaBySlug, getAllTiendas } from './tiendas';
+import { createClient } from '../supabase/client';
 
 export interface SesionUsuario {
   userId: string;
@@ -96,18 +97,32 @@ export function saveSessionCookie(session: SesionUsuario) {
 
 /**
  * Genera el enlace oficial de WhatsApp hacia la línea de Sarita IA (59178197998)
+ * y persiste el código OTP generado en Supabase para sincronizar entre servidor y navegador.
  */
-export function requestPhoneOtp(phoneInput: string): {
+export async function requestPhoneOtp(phoneInput: string): Promise<{
   code: string;
   waUrl: string;
-} {
+}> {
   const phoneDigits = cleanPhone(phoneInput) || '78490780';
   const code = Math.floor(1000 + Math.random() * 9000).toString();
   const expiresAt = Date.now() + 600000;
+  const isoExpires = new Date(expiresAt).toISOString();
 
   ACTIVE_OTPS[phoneDigits] = { code, expiresAt };
   if (phoneDigits.length >= 8) {
     ACTIVE_OTPS[phoneDigits.slice(-8)] = { code, expiresAt };
+  }
+
+  // Persistir en Supabase (public.auth_otps)
+  try {
+    const supabase = createClient();
+    const rows = [{ phone: phoneDigits, code, expires_at: isoExpires }];
+    if (phoneDigits.length >= 8 && phoneDigits !== phoneDigits.slice(-8)) {
+      rows.push({ phone: phoneDigits.slice(-8), code, expires_at: isoExpires });
+    }
+    await supabase.from('auth_otps').upsert(rows);
+  } catch (err) {
+    console.error('Error al guardar OTP en Supabase:', err);
   }
 
   const textMsg = encodeURIComponent(`Hola Sarita IA 🤖, mi número es +${phoneDigits}. Por favor envíame mi código de acceso de seguridad.`);
@@ -140,10 +155,35 @@ export async function verifyPhoneOtp(
     return { success: true, session: superSession, redirectUrl: '/superadmin' };
   }
 
+  // 1. Verificar primero en memoria local
+  let isCodeMatch = false;
   const storedOtp = ACTIVE_OTPS[phoneDigits] || (phoneDigits.length >= 8 ? ACTIVE_OTPS[phoneDigits.slice(-8)] : undefined);
-  const isValidCode =
-    codeClean === '1234' ||
-    (storedOtp && storedOtp.code === codeClean && storedOtp.expiresAt > Date.now());
+  if (storedOtp && storedOtp.code === codeClean && storedOtp.expiresAt > Date.now()) {
+    isCodeMatch = true;
+  }
+
+  // 2. Si no coincide en memoria local, buscar en Supabase (generado por Sarita IA o API)
+  if (!isCodeMatch && codeClean !== '1234') {
+    try {
+      const supabase = createClient();
+      const last8 = phoneDigits.length >= 8 ? phoneDigits.slice(-8) : phoneDigits;
+      const { data } = await supabase
+        .from('auth_otps')
+        .select('*')
+        .or(`phone.eq.${phoneDigits},phone.eq.${last8}`)
+        .gte('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (data && data.length > 0 && data[0].code === codeClean) {
+        isCodeMatch = true;
+      }
+    } catch (err) {
+      console.error('Error al verificar OTP en Supabase:', err);
+    }
+  }
+
+  const isValidCode = codeClean === '1234' || isCodeMatch;
 
   if (!isValidCode) {
     return {
