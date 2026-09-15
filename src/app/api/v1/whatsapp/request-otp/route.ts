@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAllTiendas } from '@/lib/services/tiendas';
-import { cleanPhone, requestPhoneOtp, getRegisteredUsers } from '@/lib/services/auth';
+import { cleanPhone, matchPhone, requestPhoneOtp, getRegisteredUsers } from '@/lib/services/auth';
 
 const VALID_SARITA_BEARER_TOKEN = process.env.SARITA_API_KEY || 'sk_sarita_live_tiendas_2026';
 
@@ -45,15 +45,8 @@ export async function POST(request: NextRequest) {
     const tiendas = await getAllTiendas();
     const registeredUsers = getRegisteredUsers();
 
-    const tiendaMatch = tiendas.find((t) => {
-      const storePhone = cleanPhone(t.whatsapp_number);
-      return storePhone && phoneDigits && (storePhone.endsWith(phoneDigits) || phoneDigits.endsWith(storePhone));
-    });
-
-    const userMatch = registeredUsers.find((u) => {
-      const userPhone = cleanPhone(u.telefono);
-      return userPhone && phoneDigits && (userPhone.endsWith(phoneDigits) || phoneDigits.endsWith(userPhone));
-    });
+    const tiendaMatch = tiendas.find((t) => matchPhone(phoneDigits, t.whatsapp_number));
+    const userMatch = registeredUsers.find((u) => matchPhone(phoneDigits, u.telefono));
 
     const targetStore = tiendaMatch || (userMatch ? tiendas.find((t) => t.slug === userMatch.tiendaSlug) : null);
 

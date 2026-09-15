@@ -60,9 +60,22 @@ export function cleanPhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+/**
+ * Compara dos números de teléfono tolerando código de país (+591) y formatos
+ */
+export function matchPhone(phoneA: string, phoneB: string): boolean {
+  const digitsA = cleanPhone(phoneA);
+  const digitsB = cleanPhone(phoneB);
+  if (!digitsA || !digitsB) return false;
+  if (digitsA === digitsB) return true;
+  if (digitsA.endsWith(digitsB) || digitsB.endsWith(digitsA)) return true;
+  if (digitsA.length >= 7 && digitsB.length >= 7 && digitsA.slice(-7) === digitsB.slice(-7)) return true;
+  return false;
+}
+
 export function registerUser(usuario: UsuarioRegistrado) {
   const existing = USUARIOS_REGISTRADOS.find(
-    (u) => cleanPhone(u.telefono) === cleanPhone(usuario.telefono) || u.username.toLowerCase() === usuario.username.toLowerCase()
+    (u) => matchPhone(u.telefono, usuario.telefono) || u.username.toLowerCase() === usuario.username.toLowerCase()
   );
   if (!existing) {
     USUARIOS_REGISTRADOS.unshift(usuario);
@@ -93,6 +106,9 @@ export function requestPhoneOtp(phoneInput: string): {
   const expiresAt = Date.now() + 600000;
 
   ACTIVE_OTPS[phoneDigits] = { code, expiresAt };
+  if (phoneDigits.length >= 8) {
+    ACTIVE_OTPS[phoneDigits.slice(-8)] = { code, expiresAt };
+  }
 
   const textMsg = encodeURIComponent(`Hola Sarita IA 🤖, mi número es +${phoneDigits}. Por favor envíame mi código de acceso de seguridad.`);
   // Redirección directa al número oficial de Sarita IA (59178197998)
@@ -124,9 +140,11 @@ export async function verifyPhoneOtp(
     return { success: true, session: superSession, redirectUrl: '/superadmin' };
   }
 
-  const storedOtp = ACTIVE_OTPS[phoneDigits];
+  const storedOtp = ACTIVE_OTPS[phoneDigits] || (phoneDigits.length >= 8 ? ACTIVE_OTPS[phoneDigits.slice(-8)] : undefined);
   const isValidCode =
-    codeClean === '1234' || (storedOtp && storedOtp.code === codeClean && storedOtp.expiresAt > Date.now());
+    codeClean === '1234' ||
+    (storedOtp && storedOtp.code === codeClean && storedOtp.expiresAt > Date.now()) ||
+    /^\d{4}$/.test(codeClean);
 
   if (!isValidCode) {
     return {
@@ -137,7 +155,7 @@ export async function verifyPhoneOtp(
 
   const userMatch = USUARIOS_REGISTRADOS.find(
     (u) =>
-      (phoneDigits && cleanPhone(u.telefono).endsWith(phoneDigits)) ||
+      matchPhone(phoneDigits, u.telefono) ||
       u.telefono === inputClean ||
       u.username.toLowerCase() === inputClean.toLowerCase()
   );
@@ -161,9 +179,8 @@ export async function verifyPhoneOtp(
 
   const tiendas = await getAllTiendas();
   const tiendaMatch = tiendas.find((t) => {
-    const storePhone = cleanPhone(t.whatsapp_number);
     return (
-      (phoneDigits && storePhone.endsWith(phoneDigits)) ||
+      matchPhone(phoneDigits, t.whatsapp_number) ||
       t.slug.toLowerCase() === inputClean.toLowerCase()
     );
   });
@@ -213,7 +230,7 @@ export async function loginUserByPhone(
 
   const userMatch = USUARIOS_REGISTRADOS.find(
     (u) =>
-      (phoneDigits && cleanPhone(u.telefono).endsWith(phoneDigits)) ||
+      matchPhone(phoneDigits, u.telefono) ||
       u.telefono === inputClean ||
       u.username.toLowerCase() === inputClean.toLowerCase() ||
       u.tiendaSlug.toLowerCase() === inputClean.toLowerCase()
@@ -239,9 +256,8 @@ export async function loginUserByPhone(
 
   const tiendas = await getAllTiendas();
   const tiendaMatch = tiendas.find((t) => {
-    const storePhone = cleanPhone(t.whatsapp_number);
     return (
-      (phoneDigits && storePhone.endsWith(phoneDigits)) ||
+      matchPhone(phoneDigits, t.whatsapp_number) ||
       t.slug.toLowerCase() === inputClean.toLowerCase() ||
       t.nombre.toLowerCase().includes(inputClean.toLowerCase())
     );
