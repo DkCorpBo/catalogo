@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getAllTiendas, updatePlanTienda, updateTiendaConfig } from '@/lib/services/tiendas';
-import { getCurrentSession, logoutUser, SesionUsuario } from '@/lib/services/auth';
+import { getCurrentSession, logoutUser, saveSessionCookie, SesionUsuario } from '@/lib/services/auth';
 import { Tienda, PlanTienda } from '@/lib/types';
 import { Card } from '@/components/ui/Card';
 import { StatCard } from '@/components/ui/StatCard';
-import { ShieldCheck, Store, ExternalLink, Zap, Lock, LogOut } from 'lucide-react';
+import { ShieldCheck, Store, ExternalLink, Zap, Lock, LogOut, Sliders } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SuperAdminPage() {
+  const router = useRouter();
   const [session, setSession] = useState<SesionUsuario | null>(null);
   const [tiendas, setTiendas] = useState<Tienda[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +28,21 @@ export default function SuperAdminPage() {
     setTiendas(data);
     setLoading(false);
   }
+
+  const handleImpersonateStore = (targetTienda: Tienda) => {
+    const superAdminSession: SesionUsuario = {
+      userId: 'user-superadmin',
+      username: 'superadmin',
+      nombre: `SuperAdmin (${targetTienda.nombre})`,
+      rol: 'superadmin', // Mantiene el rol superadmin para volver cuando desee
+      tiendaId: targetTienda.id,
+      tiendaNombre: targetTienda.nombre,
+      tiendaSlug: targetTienda.slug,
+      telefono: targetTienda.whatsapp_number,
+    };
+    saveSessionCookie(superAdminSession);
+    router.push('/admin');
+  };
 
   const handleTogglePlan = async (tiendaId: string, currentPlan: PlanTienda) => {
     setUpdatingId(tiendaId);
@@ -206,14 +223,25 @@ export default function SuperAdminPage() {
                           </button>
                         </td>
                         <td className="py-3 px-4 text-right">
-                          <a
-                            href={`/tienda/${t.slug}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 bg-[#3C50E0] hover:bg-[#2e3fb8] text-white rounded-lg text-[11px] font-bold transition-all inline-flex items-center gap-1"
-                          >
-                            Ver Tienda <ExternalLink size={12} />
-                          </a>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleImpersonateStore(t)}
+                              className="px-3 py-1.5 bg-[#219653] hover:bg-[#1b7a43] text-white rounded-lg text-[11px] font-bold transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                              title="Entrar a administrar esta tienda como SuperAdmin"
+                            >
+                              <Sliders size={12} /> Administrar
+                            </button>
+
+                            <a
+                              href={`/tienda/${t.slug}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg text-[11px] font-bold transition-all inline-flex items-center gap-1"
+                              title="Abrir catálogo público de clientes"
+                            >
+                              <ExternalLink size={12} /> Catálogo
+                            </a>
+                          </div>
                         </td>
                       </tr>
                     );

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Store, User, Zap, LogOut, ChevronDown, Check, Plus } from 'lucide-react';
+import { Store, User, Zap, LogOut, ChevronDown, Check, Plus, ShieldCheck } from 'lucide-react';
 import { PlanTienda, Tienda } from '@/lib/types';
 import { getCurrentSession, logoutUser, selectStoreSession, SesionUsuario } from '@/lib/services/auth';
 import { getTiendasByPhone } from '@/lib/services/tiendas';
@@ -48,7 +48,24 @@ export const AdminHeader: React.FC<HeaderProps> = ({ storeName, plan = 'gratis' 
   const hasMultipleStores = userStores.length > 1;
 
   return (
-    <header className="bg-white border-b border-[#E2E8F0] px-6 py-3.5 flex items-center justify-between shadow-2xs relative z-30">
+    <>
+      {/* Banner de Modo Auditor SuperAdmin */}
+      {session?.rol === 'superadmin' && (
+        <div className="bg-[#FFA70B] text-[#1C2434] px-6 py-2 text-xs font-black flex items-center justify-between shadow-xs border-b border-[#E08F00] z-40 relative">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={16} />
+            <span>MODO SUPERADMIN: Auditando panel de "{displayStoreName}"</span>
+          </div>
+          <Link
+            href="/superadmin"
+            className="bg-[#1C2434] hover:bg-black text-white px-3 py-1 rounded-lg text-[11px] font-extrabold transition-all flex items-center gap-1 shadow-2xs"
+          >
+            ← Volver a Lista de Tiendas (SuperAdmin)
+          </Link>
+        </div>
+      )}
+
+      <header className="bg-white border-b border-[#E2E8F0] px-6 py-3.5 flex items-center justify-between shadow-2xs relative z-30">
       <div className="flex items-center gap-2">
         <Store className="text-[#3C50E0]" size={20} />
 
@@ -138,6 +155,7 @@ export const AdminHeader: React.FC<HeaderProps> = ({ storeName, plan = 'gratis' 
           <LogOut size={18} />
         </button>
       </div>
-    </header>
+      </header>
+    </>
   );
 };
