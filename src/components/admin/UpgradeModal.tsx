@@ -46,10 +46,10 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose }) =
 
         <div className="pt-2 flex flex-col gap-2">
           <a
-            href="https://wa.me/59170000000?text=Hola,%20quiero%20actualizar%20mi%20tienda%20al%20Plan%20Pro"
+            href="https://wa.me/59178490780?text=Hola,%20quiero%20actualizar%20mi%20tienda%20al%20Plan%20Pro%20(Ilimitado)"
             target="_blank"
             rel="noopener noreferrer"
-            className="w-full bg-[#219653] hover:bg-[#1b7a43] text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all"
+            className="w-full bg-[#219653] hover:bg-[#1b7a43] text-white py-3 rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer"
           >
             Solicitar Plan Pro por WhatsApp
           </a>
