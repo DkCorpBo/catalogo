@@ -140,13 +140,37 @@ export async function getCategoriasByTiendaId(tiendaId: string): Promise<Categor
 }
 
 export async function createProducto(producto: Omit<Producto, 'id'>): Promise<Producto | null> {
-  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(producto.tienda_id);
+  let targetTiendaId = producto.tienda_id;
+  let isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetTiendaId);
+
+  // Si tienda_id no es un UUID, buscar el UUID real en Supabase por el slug de la tienda
+  if (!isUuid && process.env.NEXT_PUBLIC_SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
+    try {
+      const supabase = createClient();
+      let storeSlug = '';
+      if (typeof window !== 'undefined') {
+        const ses = JSON.parse(localStorage.getItem('tienda_session') || '{}');
+        storeSlug = ses?.tiendaSlug || '';
+      }
+      if (storeSlug) {
+        const { data: storeRow } = await supabase.from('tiendas').select('id').eq('slug', storeSlug).maybeSingle();
+        if (storeRow?.id) {
+          targetTiendaId = storeRow.id;
+          isUuid = true;
+        }
+      }
+    } catch (err) {
+      console.error('Error al resolver UUID de tienda:', err);
+    }
+  }
+
   const newId = isUuid && typeof crypto !== 'undefined' && crypto.randomUUID 
     ? crypto.randomUUID() 
     : `prod-${Date.now()}`;
 
   const newProd: Producto = {
     ...producto,
+    tienda_id: targetTiendaId,
     id: newId,
     created_at: new Date().toISOString(),
   };
@@ -159,7 +183,7 @@ export async function createProducto(producto: Omit<Producto, 'id'>): Promise<Pr
     try {
       const supabase = createClient();
       const insertPayload: any = {
-        tienda_id: producto.tienda_id,
+        tienda_id: targetTiendaId,
         nombre: producto.nombre,
         descripcion: producto.descripcion,
         precio: producto.precio,
