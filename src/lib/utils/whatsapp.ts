@@ -3,6 +3,7 @@ import { formatCurrency } from './formatters';
 
 interface BuildOrderMessageParams {
   storeName: string;
+  storeSlug?: string;
   customerName: string;
   whatsappNumber?: string;
   address?: string;
@@ -24,6 +25,7 @@ export function cleanPhoneNumber(phone: string): string {
  */
 export function buildOrderWhatsAppMessage({
   storeName,
+  storeSlug,
   customerName,
   address,
   items,
@@ -31,25 +33,27 @@ export function buildOrderWhatsAppMessage({
   currency = 'USD',
   orderId,
 }: BuildOrderMessageParams): string {
-  let message = `🛒 *NUEVO PEDIDO - ${storeName.toUpperCase()}*\n`;
-  
+  let message = `🛒 *¡NUEVO PEDIDO DE COMPRA!* 🛒\n`;
+  message += `🏪 *Tienda:* *${storeName.toUpperCase()}*\n`;
+  if (storeSlug) {
+    message += `🌐 *Catálogo:* /tienda/${storeSlug}\n`;
+  }
   if (orderId) {
     message += `📋 *Pedido N°:* #${orderId.slice(0, 8)}\n`;
   }
-  
   message += `👤 *Cliente:* ${customerName}\n`;
   if (address && address.trim()) {
     message += `📍 *Dirección:* ${address.trim()}\n`;
   }
   
-  message += `\n📦 *DESGLOSE DEL PEDIDO:*\n`;
+  message += `\n📦 *PRODUCTOS SOLICITADOS:*\n`;
   items.forEach((item) => {
     const subtotal = item.producto.precio * item.cantidad;
     message += `▪️ ${item.cantidad}x ${item.producto.nombre} - ${formatCurrency(subtotal, currency)}\n`;
   });
 
-  message += `\n💰 *TOTAL A PAGAR: ${formatCurrency(total, currency)}*\n\n`;
-  message += `Quedo atento a la confirmación y tiempo estimado de entrega. ¡Gracias! 🙌`;
+  message += `\n💰 *TOTAL DEL PEDIDO: ${formatCurrency(total, currency)}*\n\n`;
+  message += `Hola, acabo de realizar este pedido en su tienda *${storeName}*. Quedo a la espera de su confirmación. ¡Muchas gracias! 🙌`;
 
   return message;
 }

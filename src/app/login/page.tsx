@@ -2,16 +2,18 @@
 
 import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { verifyPhoneOtp, requestPhoneOtp } from '@/lib/services/auth';
-import { Store, Smartphone, ArrowRight, Bot, CheckCircle2, RefreshCw, ShieldCheck } from 'lucide-react';
+import { verifyPhoneOtp, requestPhoneOtp, selectStoreSession } from '@/lib/services/auth';
+import { Tienda } from '@/lib/types';
+import { Store, Smartphone, ArrowRight, Bot, CheckCircle2, RefreshCw, Zap } from 'lucide-react';
 import Link from 'next/link';
 
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [step, setStep] = useState<1 | 2>(1);
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [phoneInput, setPhoneInput] = useState('78490780');
   const [otpCodeInput, setOtpCodeInput] = useState('');
+  const [availableStores, setAvailableStores] = useState<Tienda[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [autoLoggingIn, setAutoLoggingIn] = useState(false);
@@ -24,8 +26,16 @@ function LoginContent() {
       setAutoLoggingIn(true);
       setPhoneInput(urlPhone);
       verifyPhoneOtp(urlPhone, urlOtp).then((res) => {
-        if (res.success && res.redirectUrl) {
-          router.push(res.redirectUrl);
+        if (res.success) {
+          if (res.multipleStores && res.tiendas && res.tiendas.length > 1) {
+            setAutoLoggingIn(false);
+            setAvailableStores(res.tiendas);
+            setStep(3);
+            return;
+          }
+          if (res.redirectUrl) {
+            router.push(res.redirectUrl);
+          }
         } else {
           setAutoLoggingIn(false);
           setErrorMsg(res.error || 'Código OTP inválido o expirado.');
@@ -61,8 +71,15 @@ function LoginContent() {
     const res = await verifyPhoneOtp(phoneInput, otpCodeInput);
     setLoading(false);
 
-    if (res.success && res.redirectUrl) {
-      router.push(res.redirectUrl);
+    if (res.success) {
+      if (res.multipleStores && res.tiendas && res.tiendas.length > 1) {
+        setAvailableStores(res.tiendas);
+        setStep(3);
+        return;
+      }
+      if (res.redirectUrl) {
+        router.push(res.redirectUrl);
+      }
     } else {
       setErrorMsg(res.error || 'Código incorrecto. Revisa el código de 4 dígitos enviado.');
     }
@@ -122,7 +139,7 @@ function LoginContent() {
             Enviar Código de Acceso <ArrowRight size={16} />
           </button>
         </form>
-      ) : (
+      ) : step === 2 ? (
         /* PASO 2: Ingreso de Código OTP */
         <form onSubmit={handleVerifyOtp} className="space-y-4 text-xs">
           <div className="text-center space-y-1 bg-[#F8FAFC] p-3.5 rounded-xl border border-[#E2E8F0]">
@@ -178,6 +195,80 @@ function LoginContent() {
             </button>
           </div>
         </form>
+      ) : (
+        /* PASO 3: Selector de Múltiples Tiendas (Exclusivo Plan Pro) */
+        <div className="space-y-4">
+          <div className="text-center space-y-1">
+            <h3 className="font-extrabold text-base text-[#1C2434]">Selecciona tu Tienda</h3>
+            <p className="text-xs text-[#64748B]">Tienes múltiples tiendas vinculadas a tu cuenta:</p>
+          </div>
+
+          <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+            {availableStores.map((store) => {
+              const isPro = store.plan === 'pro';
+              return (
+                <button
+                  key={store.id}
+                  onClick={() => {
+                    selectStoreSession(store);
+                    router.push('/admin');
+                  }}
+                  className="w-full text-left p-3.5 rounded-xl border border-[#E2E8F0] hover:border-[#3C50E0] hover:bg-indigo-50/40 transition-all flex items-center justify-between group cursor-pointer bg-white"
+                >
+                  <div className="flex items-center gap-3">
+                    {store.logo_url ? (
+                      <img
+                        src={store.logo_url}
+                        alt={store.nombre}
+                        className="w-10 h-10 rounded-xl object-cover border border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-xl bg-[#3C50E0]/10 text-[#3C50E0] flex items-center justify-center font-bold">
+                        <Store size={20} />
+                      </div>
+                    )}
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-bold text-sm text-[#1C2434] group-hover:text-[#3C50E0] transition-colors">
+                          {store.nombre}
+                        </h4>
+                        {isPro && (
+                          <span className="text-[10px] bg-[#219653]/10 text-[#219653] px-1.5 py-0.5 rounded-md font-extrabold border border-[#219653]/20">
+                            PRO
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-[#64748B]">/tienda/{store.slug}</span>
+                    </div>
+                  </div>
+
+                  <span className="text-xs font-bold text-[#3C50E0] bg-[#3C50E0]/10 px-2.5 py-1 rounded-lg">
+                    Entrar →
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pt-3 border-t border-[#E2E8F0] flex items-center justify-between text-xs">
+            <button
+              type="button"
+              onClick={() => {
+                setStep(1);
+                setOtpCodeInput('');
+              }}
+              className="text-gray-500 hover:text-gray-700 font-bold cursor-pointer"
+            >
+              ← Volver
+            </button>
+            <Link
+              href="/crear-tienda"
+              className="text-[#3C50E0] font-bold hover:underline flex items-center gap-1"
+            >
+              + Crear otra tienda
+            </Link>
+          </div>
+        </div>
       )}
 
       <div className="text-center pt-4 border-t border-[#E2E8F0] text-[11px] text-[#64748B]">

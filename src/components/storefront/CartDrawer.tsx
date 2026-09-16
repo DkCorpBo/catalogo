@@ -70,6 +70,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
       // 2. Generar el enlace directo a WhatsApp
       const waUrl = createWhatsAppOrderUrl(tienda.whatsapp_number, {
         storeName: tienda.nombre,
+        storeSlug: tienda.slug,
         customerName: customerName.trim(),
         address: customerAddress.trim(),
         items,

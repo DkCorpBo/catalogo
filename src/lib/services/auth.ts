@@ -1,4 +1,4 @@
-import { RolUsuario } from '../types';
+import { RolUsuario, Tienda } from '../types';
 import { getTiendaBySlug, getAllTiendas } from './tiendas';
 import { createClient } from '../supabase/client';
 
@@ -127,12 +127,17 @@ export async function requestPhoneOtp(phoneInput: string): Promise<{
 export async function verifyPhoneOtp(
   phoneInput: string,
   enteredCode: string
-): Promise<{ success: boolean; session?: SesionUsuario; redirectUrl?: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  session?: SesionUsuario;
+  redirectUrl?: string;
+  error?: string;
+  multipleStores?: boolean;
+  tiendas?: Tienda[];
+}> {
   const inputClean = phoneInput.trim();
   const phoneDigits = cleanPhone(inputClean);
   const codeClean = enteredCode.trim();
-
-
 
   // 1. Verificar primero en memoria local
   let isCodeMatch = false;
@@ -171,51 +176,26 @@ export async function verifyPhoneOtp(
     };
   }
 
-  const userMatch = USUARIOS_REGISTRADOS.find(
-    (u) =>
-      matchPhone(phoneDigits, u.telefono) ||
-      u.telefono === inputClean ||
-      u.username.toLowerCase() === inputClean.toLowerCase()
-  );
-
-  if (userMatch) {
-    const tienda = await getTiendaBySlug(userMatch.tiendaSlug);
-    const session: SesionUsuario = {
-      userId: userMatch.userId,
-      username: userMatch.username,
-      nombre: userMatch.nombre,
-      rol: userMatch.rol,
-      tiendaId: tienda?.id || userMatch.tiendaId || 'demo-tienda-123',
-      tiendaNombre: tienda?.nombre || 'Mi Tienda',
-      tiendaSlug: tienda?.slug || userMatch.tiendaSlug,
-      telefono: userMatch.telefono,
-    };
-
-    saveSessionCookie(session);
-    return { success: true, session, redirectUrl: '/admin' };
-  }
-
   const tiendas = await getAllTiendas();
-  const tiendaMatch = tiendas.find((t) => {
+  const matchingTiendas = tiendas.filter((t) => {
     return (
       matchPhone(phoneDigits, t.whatsapp_number) ||
       t.slug.toLowerCase() === inputClean.toLowerCase()
     );
   });
 
-  if (tiendaMatch) {
-    const dynamicSession: SesionUsuario = {
-      userId: `user-${tiendaMatch.id}`,
-      username: tiendaMatch.slug,
-      nombre: `Dueño (${tiendaMatch.nombre})`,
-      rol: 'admin_tienda',
-      tiendaId: tiendaMatch.id,
-      tiendaNombre: tiendaMatch.nombre,
-      tiendaSlug: tiendaMatch.slug,
-      telefono: tiendaMatch.whatsapp_number,
+  // Si tiene múltiples tiendas asociadas a este número (exclusivo para Plan Pro)
+  if (matchingTiendas.length > 1) {
+    return {
+      success: true,
+      multipleStores: true,
+      tiendas: matchingTiendas,
     };
+  }
 
-    saveSessionCookie(dynamicSession);
+  if (matchingTiendas.length === 1) {
+    const tiendaMatch = matchingTiendas[0];
+    const dynamicSession: SesionUsuario = selectStoreSession(tiendaMatch);
     return { success: true, session: dynamicSession, redirectUrl: '/admin' };
   }
 
@@ -223,6 +203,25 @@ export async function verifyPhoneOtp(
     success: false,
     error: 'No se encontró una tienda registrada con este número. Regístrala gratis en 30 segundos.',
   };
+}
+
+/**
+ * Establece la sesión activa para una tienda seleccionada (soporte multi-tienda Pro)
+ */
+export function selectStoreSession(tienda: Tienda): SesionUsuario {
+  const dynamicSession: SesionUsuario = {
+    userId: `user-${tienda.id}`,
+    username: tienda.slug,
+    nombre: `Dueño (${tienda.nombre})`,
+    rol: 'admin_tienda',
+    tiendaId: tienda.id,
+    tiendaNombre: tienda.nombre,
+    tiendaSlug: tienda.slug,
+    telefono: tienda.whatsapp_number,
+  };
+
+  saveSessionCookie(dynamicSession);
+  return dynamicSession;
 }
 
 export async function loginUserByPhone(

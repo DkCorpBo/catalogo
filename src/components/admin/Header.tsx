@@ -1,9 +1,9 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
-import { Store, User, Zap, LogOut } from 'lucide-react';
-import { PlanTienda } from '@/lib/types';
-import { getCurrentSession, logoutUser, SesionUsuario } from '@/lib/services/auth';
+import React, { useEffect, useState, useRef } from 'react';
+import { Store, User, Zap, LogOut, ChevronDown, Check, Plus } from 'lucide-react';
+import { PlanTienda, Tienda } from '@/lib/types';
+import { getCurrentSession, logoutUser, selectStoreSession, SesionUsuario } from '@/lib/services/auth';
+import { getTiendasByPhone } from '@/lib/services/tiendas';
+import Link from 'next/link';
 
 interface HeaderProps {
   storeName?: string;
@@ -12,19 +12,97 @@ interface HeaderProps {
 
 export const AdminHeader: React.FC<HeaderProps> = ({ storeName, plan = 'gratis' }) => {
   const [session, setSession] = useState<SesionUsuario | null>(null);
+  const [userStores, setUserStores] = useState<Tienda[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setSession(getCurrentSession());
+    const curSes = getCurrentSession();
+    setSession(curSes);
+
+    if (curSes?.telefono) {
+      getTiendasByPhone(curSes.telefono).then((stores) => {
+        setUserStores(stores);
+      });
+    }
   }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleSwitchStore = (store: Tienda) => {
+    selectStoreSession(store);
+    setIsDropdownOpen(false);
+    window.location.href = '/admin';
+  };
 
   const isPro = plan === 'pro';
   const displayStoreName = storeName || session?.tiendaNombre || 'Mi Tienda';
+  const hasMultipleStores = userStores.length > 1;
 
   return (
-    <header className="bg-white border-b border-[#E2E8F0] px-6 py-4 flex items-center justify-between shadow-2xs">
+    <header className="bg-white border-b border-[#E2E8F0] px-6 py-3.5 flex items-center justify-between shadow-2xs relative z-30">
       <div className="flex items-center gap-2">
         <Store className="text-[#3C50E0]" size={20} />
-        <h1 className="text-base font-bold text-[#1C2434]">{displayStoreName}</h1>
+
+        {/* Si tiene múltiples tiendas: Selector desplegable */}
+        {hasMultipleStores ? (
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="flex items-center gap-1.5 font-extrabold text-base text-[#1C2434] hover:text-[#3C50E0] transition-colors cursor-pointer group"
+            >
+              <span>{displayStoreName}</span>
+              <ChevronDown size={16} className={`text-gray-400 group-hover:text-[#3C50E0] transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+
+            {isDropdownOpen && (
+              <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-xl border border-[#E2E8F0] shadow-xl py-2 z-50 animate-in fade-in duration-150">
+                <p className="px-3.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-[#64748B]">
+                  Mis Tiendas ({userStores.length})
+                </p>
+                <div className="max-h-60 overflow-y-auto divide-y divide-gray-50">
+                  {userStores.map((s) => {
+                    const isCurrent = s.id === session?.tiendaId || s.slug === session?.tiendaSlug;
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => handleSwitchStore(s)}
+                        className={`w-full text-left px-3.5 py-2.5 flex items-center justify-between hover:bg-gray-50 transition-colors cursor-pointer ${
+                          isCurrent ? 'bg-indigo-50/50 font-bold text-[#3C50E0]' : 'text-[#1C2434]'
+                        }`}
+                      >
+                        <div className="truncate pr-2">
+                          <p className="text-xs font-bold truncate">{s.nombre}</p>
+                          <p className="text-[10px] text-gray-400 truncate">/tienda/{s.slug}</p>
+                        </div>
+                        {isCurrent && <Check size={14} className="text-[#3C50E0] shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="pt-2 px-2 mt-1 border-t border-[#E2E8F0]">
+                  <Link
+                    href="/crear-tienda"
+                    className="w-full px-3 py-1.5 rounded-lg text-xs font-bold text-[#3C50E0] hover:bg-indigo-50 flex items-center justify-center gap-1 transition-colors"
+                  >
+                    <Plus size={14} /> Registrar otra tienda
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <h1 className="text-base font-bold text-[#1C2434]">{displayStoreName}</h1>
+        )}
 
         <span
           className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border ml-2 flex items-center gap-1 ${

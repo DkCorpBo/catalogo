@@ -39,7 +39,7 @@ export default function CrearTiendaPage() {
     try {
       const targetSlug = slug.trim() || nombreTienda.toLowerCase().replace(/\s+/g, '-');
 
-      // 1. Crear la tienda
+      // 1. Crear la tienda (valida que no tenga tienda previa en Plan Gratuito)
       const newStore = await createNewTienda({
         nombre: nombreTienda.trim(),
         slug: targetSlug,
@@ -60,9 +60,13 @@ export default function CrearTiendaPage() {
 
       // 3. Redirigir al panel de la nueva tienda con bienvenida
       router.push('/admin?welcome=1');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al crear tienda:', err);
-      setErrorMsg('Ocurrió un error al registrar la tienda. Intenta nuevamente.');
+      if (err?.code === 'MULTIPLE_STORES_PRO_REQUIRED' || err?.message?.includes('Plan Pro')) {
+        setErrorMsg(err.message);
+      } else {
+        setErrorMsg('Ocurrió un error al registrar la tienda. Intenta nuevamente o usa otro slug.');
+      }
     } finally {
       setLoading(false);
     }
@@ -137,7 +141,23 @@ export default function CrearTiendaPage() {
             </div>
           </div>
 
-          {errorMsg && <p className="text-xs text-[#D34053] font-bold">{errorMsg}</p>}
+          {errorMsg && (
+            <div className="text-xs text-[#D34053] font-bold bg-red-50 p-3.5 rounded-xl border border-red-200 space-y-2">
+              <p>{errorMsg}</p>
+              {errorMsg.includes('Plan Pro') && (
+                <div className="pt-1">
+                  <a
+                    href={`https://wa.me/59178490780?text=${encodeURIComponent(`Hola, quiero actualizar a Plan Pro Multi-Tienda para mi número +${whatsappNumber.replace(/\D/g, '')}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#219653] hover:bg-[#1b7a43] text-white rounded-lg text-xs font-bold shadow-xs transition-colors"
+                  >
+                    <Zap size={13} /> Solicitar Plan Pro Multi-Tienda
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             type="submit"

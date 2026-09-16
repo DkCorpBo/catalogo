@@ -115,9 +115,37 @@ export async function getTiendaBySlug(slug: string): Promise<Tienda | null> {
   return null;
 }
 
+export async function getTiendasByPhone(phone: string): Promise<Tienda[]> {
+  const all = await getAllTiendas();
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return [];
+  return all.filter((t) => {
+    const tDigits = (t.whatsapp_number || '').replace(/\D/g, '');
+    if (tDigits === digits) return true;
+    if (tDigits.endsWith(digits) || digits.endsWith(tDigits)) return true;
+    if (tDigits.length >= 7 && digits.length >= 7 && tDigits.slice(-7) === digits.slice(-7)) return true;
+    return false;
+  });
+}
+
 export async function createNewTienda(
   data: Omit<Tienda, 'id' | 'activo' | 'plan' | 'max_productos' | 'max_pedidos_mes'>
 ): Promise<Tienda> {
+  // Validación de Regla de Negocio: En Plan Gratuito solo se permite 1 tienda por número.
+  // Múltiples tiendas está restringido a usuarios con Plan Pro.
+  const existingStores = await getTiendasByPhone(data.whatsapp_number);
+  if (existingStores.length > 0) {
+    const hasPro = existingStores.some((s) => s.plan === 'pro');
+    if (!hasPro) {
+      const error: any = new Error(
+        `Tu número ya tiene registrada la tienda "${existingStores[0].nombre}" en el Plan Gratuito. El uso de múltiples tiendas con un mismo número es exclusivo para usuarios de Plan Pro.`
+      );
+      error.code = 'MULTIPLE_STORES_PRO_REQUIRED';
+      error.existingStore = existingStores[0];
+      throw error;
+    }
+  }
+
   const localList = getLocalTiendasList();
   const newUuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'a0eebc99-9c0b-4ef8-bb6d-' + Date.now().toString(16).padStart(12, '0');
   
