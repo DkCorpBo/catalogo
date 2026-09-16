@@ -17,27 +17,36 @@ export function proxy(request: NextRequest) {
   const isAuthenticated = !!sessionUser;
   const isSuperAdmin = sessionUser?.rol === 'superadmin';
 
-  // 1. Proteger rutas administrativas (/admin/* y /superadmin/*) si no hay sesión
-  if (!isAuthenticated) {
-    if (pathname.startsWith('/admin') || pathname.startsWith('/superadmin')) {
+  // 1. Ruta de login de SuperAdmin
+  if (pathname === '/superadmin/login') {
+    if (isAuthenticated && isSuperAdmin) {
+      return NextResponse.redirect(new URL('/superadmin', request.url));
+    }
+    return NextResponse.next();
+  }
+
+  // 2. Proteger rutas /superadmin/* (excepto /superadmin/login)
+  if (pathname.startsWith('/superadmin')) {
+    if (!isAuthenticated || !isSuperAdmin) {
+      const loginUrl = new URL('/superadmin/login', request.url);
+      loginUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // 3. Proteger rutas de tiendas (/admin/*)
+  if (pathname.startsWith('/admin')) {
+    if (!isAuthenticated) {
       const loginUrl = new URL('/login', request.url);
       loginUrl.searchParams.set('redirect', pathname);
       return NextResponse.redirect(loginUrl);
     }
   }
 
-  // 2. Si está autenticado
-  if (isAuthenticated) {
-    // Si intenta ir a /login teniendo sesión activa, mandarlo a su panel correspondiente
-    if (pathname === '/login') {
-      const targetPath = isSuperAdmin ? '/superadmin' : '/admin';
-      return NextResponse.redirect(new URL(targetPath, request.url));
-    }
-
-    // Proteger /superadmin para que solo lo vea un superadmin
-    if (pathname.startsWith('/superadmin') && !isSuperAdmin) {
-      return NextResponse.redirect(new URL('/admin', request.url));
-    }
+  // 4. Si ya tiene sesión activa e intenta ir a /login, redirigir a su panel
+  if (pathname === '/login' && isAuthenticated) {
+    const targetPath = isSuperAdmin ? '/superadmin' : '/admin';
+    return NextResponse.redirect(new URL(targetPath, request.url));
   }
 
   return NextResponse.next();

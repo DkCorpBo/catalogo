@@ -36,21 +36,9 @@ function LoginContent() {
 
   const handleRequestOtp = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    const clean = phoneInput.trim();
-    if (!clean) {
+    if (!phoneInput.trim()) {
       setErrorMsg('Por favor ingresa tu número de celular o WhatsApp.');
       return;
-    }
-
-    // Acceso instantáneo SuperAdmin si ingresa 'superadmin' o '0000'
-    if (clean.toLowerCase() === 'superadmin' || clean === '0000') {
-      setLoading(true);
-      const res = await verifyPhoneOtp(clean, '0000');
-      setLoading(false);
-      if (res.success && res.redirectUrl) {
-        router.push(res.redirectUrl);
-        return;
-      }
     }
 
     setErrorMsg('');
@@ -192,24 +180,8 @@ function LoginContent() {
         </form>
       )}
 
-      <div className="text-center pt-4 border-t border-[#E2E8F0] space-y-2 text-[11px] text-[#64748B]">
+      <div className="text-center pt-4 border-t border-[#E2E8F0] text-[11px] text-[#64748B]">
         <p>¿Quieres vender por WhatsApp? <Link href="/crear-tienda" className="text-[#3C50E0] font-bold">Crear Tienda Gratis</Link>.</p>
-        <div>
-          <button
-            type="button"
-            onClick={async () => {
-              setLoading(true);
-              const res = await verifyPhoneOtp('superadmin', '0000');
-              setLoading(false);
-              if (res.success && res.redirectUrl) {
-                router.push(res.redirectUrl);
-              }
-            }}
-            className="text-[11px] text-gray-400 hover:text-[#1C2434] transition-colors inline-flex items-center gap-1 font-medium cursor-pointer"
-          >
-            <ShieldCheck size={13} /> Acceso Administrador Global (SuperAdmin)
-          </button>
-        </div>
       </div>
     </div>
   );

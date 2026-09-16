@@ -28,14 +28,6 @@ export const SARITA_IA_WHATSAPP_NUMBER = '59178197998';
 
 let USUARIOS_REGISTRADOS: UsuarioRegistrado[] = [
   {
-    userId: 'user-superadmin',
-    username: 'superadmin',
-    telefono: '0000',
-    nombre: 'Administrador Global',
-    rol: 'superadmin',
-    tiendaSlug: 'demo',
-  },
-  {
     userId: 'user-demo-admin',
     username: 'demo',
     telefono: '78490780',
@@ -140,20 +132,7 @@ export async function verifyPhoneOtp(
   const phoneDigits = cleanPhone(inputClean);
   const codeClean = enteredCode.trim();
 
-  if (inputClean.toLowerCase() === 'superadmin' || inputClean === '0000') {
-    const superSession: SesionUsuario = {
-      userId: 'user-superadmin',
-      username: 'superadmin',
-      nombre: 'Administrador Global',
-      rol: 'superadmin',
-      tiendaId: 'demo-tienda-123',
-      tiendaNombre: 'Plataforma Global',
-      tiendaSlug: 'demo',
-      telefono: '0000',
-    };
-    saveSessionCookie(superSession);
-    return { success: true, session: superSession, redirectUrl: '/superadmin' };
-  }
+
 
   // 1. Verificar primero en memoria local
   let isCodeMatch = false;
@@ -163,7 +142,7 @@ export async function verifyPhoneOtp(
   }
 
   // 2. Si no coincide en memoria local, buscar en Supabase (generado por Sarita IA o API)
-  if (!isCodeMatch && codeClean !== '1234') {
+  if (!isCodeMatch) {
     try {
       const supabase = createClient();
       const last8 = phoneDigits.length >= 8 ? phoneDigits.slice(-8) : phoneDigits;
@@ -183,7 +162,7 @@ export async function verifyPhoneOtp(
     }
   }
 
-  const isValidCode = codeClean === '1234' || isCodeMatch;
+  const isValidCode = isCodeMatch;
 
   if (!isValidCode) {
     return {
@@ -252,20 +231,7 @@ export async function loginUserByPhone(
   const inputClean = phoneOrUsernameInput.trim();
   const phoneDigits = cleanPhone(inputClean);
 
-  if (inputClean.toLowerCase() === 'superadmin' || inputClean === '0000') {
-    const superSession: SesionUsuario = {
-      userId: 'user-superadmin',
-      username: 'superadmin',
-      nombre: 'Administrador Global',
-      rol: 'superadmin',
-      tiendaId: 'demo-tienda-123',
-      tiendaNombre: 'Plataforma Global',
-      tiendaSlug: 'demo',
-      telefono: '0000',
-    };
-    saveSessionCookie(superSession);
-    return { success: true, session: superSession, redirectUrl: '/superadmin' };
-  }
+
 
   const userMatch = USUARIOS_REGISTRADOS.find(
     (u) =>
@@ -346,10 +312,12 @@ export function getCurrentSession(): SesionUsuario | null {
   return null;
 }
 
-export function logoutUser() {
+export function logoutUser(redirectTo?: unknown) {
   if (typeof window !== 'undefined') {
+    const isSuper = getCurrentSession()?.rol === 'superadmin';
     localStorage.removeItem(COOKIE_NAME);
     document.cookie = `${COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT`;
-    window.location.href = '/login';
+    const targetUrl = typeof redirectTo === 'string' ? redirectTo : (isSuper ? '/superadmin/login' : '/login');
+    window.location.href = targetUrl;
   }
 }
