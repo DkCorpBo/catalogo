@@ -58,8 +58,8 @@ export default function CrearTiendaPage() {
         tiendaId: newStore.id,
       });
 
-      // 3. Redirigir al panel de la nueva tienda
-      router.push('/admin');
+      // 3. Redirigir al panel de la nueva tienda con bienvenida
+      router.push('/admin?welcome=1');
     } catch (err) {
       console.error('Error al crear tienda:', err);
       setErrorMsg('Ocurrió un error al registrar la tienda. Intenta nuevamente.');

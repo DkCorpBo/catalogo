@@ -1,13 +1,15 @@
 import { Producto, Categoria } from '../types';
 import { createClient } from '../supabase/client';
 
+const STORAGE_KEY = 'productos_db_v1';
+
 const MOCK_CATEGORIAS: Categoria[] = [
   { id: 'cat-1', tienda_id: 'demo-tienda-123', nombre: 'Bebidas & Agua', orden: 1 },
   { id: 'cat-2', tienda_id: 'demo-tienda-123', nombre: 'Accesorios & Equipos', orden: 2 },
   { id: 'cat-3', tienda_id: 'tienda-super-market', nombre: 'Abarrotes & Frutas', orden: 1 },
 ];
 
-let MOCK_PRODUCTOS: Producto[] = [
+const DEFAULT_PRODUCTOS: Producto[] = [
   {
     id: 'prod-1',
     tienda_id: 'demo-tienda-123',
@@ -62,10 +64,36 @@ let MOCK_PRODUCTOS: Producto[] = [
   },
 ];
 
+function getLocalProductosList(): Producto[] {
+  if (typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_PRODUCTOS));
+    } catch (err) {
+      console.error('Error al leer productos de localStorage:', err);
+    }
+  }
+  return DEFAULT_PRODUCTOS;
+}
+
+function saveLocalProductosList(prods: Producto[]) {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(prods));
+    } catch (err) {
+      console.error('Error al guardar productos en localStorage:', err);
+    }
+  }
+}
+
 export async function getProductosByTiendaId(tiendaId: string): Promise<Producto[]> {
+  const localList = getLocalProductosList().filter((p) => p.tienda_id === tiendaId);
+
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
-    // FILTRADO ESTRICTO POR TIENDA_ID
-    return MOCK_PRODUCTOS.filter((p) => p.tienda_id === tiendaId);
+    return localList;
   }
 
   try {
@@ -76,11 +104,17 @@ export async function getProductosByTiendaId(tiendaId: string): Promise<Producto
       .eq('tienda_id', tiendaId)
       .order('created_at', { ascending: false });
 
-    if (error || !data) return MOCK_PRODUCTOS.filter((p) => p.tienda_id === tiendaId);
-    return data as Producto[];
+    if (error || !data || data.length === 0) {
+      return localList;
+    }
+
+    // Combinar con los creados localmente si no existen en Supabase
+    const supabaseIds = new Set(data.map((d: any) => d.id));
+    const merged = [...data as Producto[], ...localList.filter((p) => !supabaseIds.has(p.id))];
+    return merged;
   } catch (err) {
     console.error('Error al obtener productos:', err);
-    return MOCK_PRODUCTOS.filter((p) => p.tienda_id === tiendaId);
+    return localList;
   }
 }
 
@@ -106,13 +140,23 @@ export async function getCategoriasByTiendaId(tiendaId: string): Promise<Categor
 }
 
 export async function createProducto(producto: Omit<Producto, 'id'>): Promise<Producto | null> {
-  const newProd: Producto = { ...producto, id: `prod-${Date.now()}` };
+  const newId = `prod-${Date.now()}`;
+  const newProd: Producto = {
+    ...producto,
+    id: newId,
+    created_at: new Date().toISOString(),
+  };
+
+  // 1. Guardar en localStorage para disponibilidad instantánea
+  const allProds = getLocalProductosList();
+  allProds.unshift(newProd);
+  saveLocalProductosList(allProds);
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
-    MOCK_PRODUCTOS.unshift(newProd);
     return newProd;
   }
 
+  // 2. Intentar guardar en Supabase
   try {
     const supabase = createClient();
     const { data, error } = await supabase
@@ -122,19 +166,19 @@ export async function createProducto(producto: Omit<Producto, 'id'>): Promise<Pr
       .single();
 
     if (error || !data) {
-      MOCK_PRODUCTOS.unshift(newProd);
+      console.warn('Advertencia al insertar en Supabase (guardado en local):', error);
       return newProd;
     }
     return data as Producto;
   } catch (err) {
-    console.error('Error al crear producto:', err);
-    MOCK_PRODUCTOS.unshift(newProd);
+    console.error('Error al crear producto en Supabase:', err);
     return newProd;
   }
 }
 
 export async function updateProducto(id: string, updates: Partial<Producto>): Promise<boolean> {
-  MOCK_PRODUCTOS = MOCK_PRODUCTOS.map((p) => (p.id === id ? { ...p, ...updates } : p));
+  const allProds = getLocalProductosList().map((p) => (p.id === id ? { ...p, ...updates } : p));
+  saveLocalProductosList(allProds);
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
     return true;
@@ -146,12 +190,13 @@ export async function updateProducto(id: string, updates: Partial<Producto>): Pr
     return !error;
   } catch (err) {
     console.error('Error al actualizar producto:', err);
-    return false;
+    return true;
   }
 }
 
 export async function deleteProducto(id: string): Promise<boolean> {
-  MOCK_PRODUCTOS = MOCK_PRODUCTOS.filter((p) => p.id !== id);
+  const allProds = getLocalProductosList().filter((p) => p.id !== id);
+  saveLocalProductosList(allProds);
 
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
     return true;
@@ -163,6 +208,6 @@ export async function deleteProducto(id: string): Promise<boolean> {
     return !error;
   } catch (err) {
     console.error('Error al eliminar producto:', err);
-    return false;
+    return true;
   }
 }

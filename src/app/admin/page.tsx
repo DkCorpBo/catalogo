@@ -1,21 +1,26 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AdminSidebar } from '@/components/admin/Sidebar';
 import { AdminHeader } from '@/components/admin/Header';
 import { OnboardingWizard } from '@/components/admin/OnboardingWizard';
 import { StatCard } from '@/components/ui/StatCard';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { WelcomeModal } from '@/components/admin/WelcomeModal';
+import { CreateProductModal } from '@/components/admin/CreateProductModal';
+import { UpgradeModal } from '@/components/admin/UpgradeModal';
 import { getKpisByTiendaId, getPedidosByTiendaId } from '@/lib/services/pedidos';
 import { getTiendaBySlug } from '@/lib/services/tiendas';
 import { getCurrentSession, SesionUsuario } from '@/lib/services/auth';
 import { formatCurrency, formatDate } from '@/lib/utils/formatters';
-import { Pedido, Tienda } from '@/lib/types';
-import { DollarSign, Clock, CheckCircle2, AlertTriangle, ArrowRight, ShoppingCart, Plus } from 'lucide-react';
+import { Pedido, Tienda, Producto } from '@/lib/types';
+import { DollarSign, Clock, CheckCircle2, AlertTriangle, ArrowRight, ShoppingCart, Plus, Camera } from 'lucide-react';
 import Link from 'next/link';
 
-export default function AdminDashboardPage() {
+function AdminDashboardContent() {
+  const searchParams = useSearchParams();
   const [session, setSession] = useState<SesionUsuario | null>(null);
   const [tienda, setTienda] = useState<Tienda | null>(null);
   const [kpis, setKpis] = useState({
@@ -28,28 +33,45 @@ export default function AdminDashboardPage() {
   const [pedidosRecientes, setPedidosRecientes] = useState<Pedido[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Modales
+  const [isWelcomeModalOpen, setIsWelcomeModalOpen] = useState(false);
+  const [isCreateProductModalOpen, setIsCreateProductModalOpen] = useState(false);
+  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+
   useEffect(() => {
-    async function loadDashboard() {
-      setLoading(true);
-      const currentSes = getCurrentSession();
-      setSession(currentSes);
-
-      const targetSlug = currentSes?.tiendaSlug || 'demo';
-      const store = await getTiendaBySlug(targetSlug);
-      setTienda(store);
-
-      if (store) {
-        const [kpiData, peds] = await Promise.all([
-          getKpisByTiendaId(store.id),
-          getPedidosByTiendaId(store.id),
-        ]);
-        setKpis(kpiData);
-        setPedidosRecientes(peds.slice(0, 5));
-      }
-      setLoading(false);
-    }
     loadDashboard();
   }, []);
+
+  useEffect(() => {
+    // Si viene de crear tienda (?welcome=1)
+    if (searchParams.get('welcome') === '1') {
+      setIsWelcomeModalOpen(true);
+    }
+  }, [searchParams]);
+
+  async function loadDashboard() {
+    setLoading(true);
+    const currentSes = getCurrentSession();
+    setSession(currentSes);
+
+    const targetSlug = currentSes?.tiendaSlug || 'demo';
+    const store = await getTiendaBySlug(targetSlug);
+    setTienda(store);
+
+    if (store) {
+      const [kpiData, peds] = await Promise.all([
+        getKpisByTiendaId(store.id),
+        getPedidosByTiendaId(store.id),
+      ]);
+      setKpis(kpiData);
+      setPedidosRecientes(peds.slice(0, 5));
+    }
+    setLoading(false);
+  }
+
+  const handleProductCreated = () => {
+    loadDashboard();
+  };
 
   return (
     <div className="flex min-h-screen bg-[#F1F5F9]">
@@ -58,7 +80,7 @@ export default function AdminDashboardPage() {
       <div className="flex-1 flex flex-col min-w-0">
         <AdminHeader storeName={tienda?.nombre} plan={tienda?.plan} />
 
-        <main className="p-6 space-y-6 flex-1 overflow-y-auto">
+        <main className="p-4 sm:p-6 space-y-6 flex-1 overflow-y-auto">
           {/* Header de Bienvenida */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -68,13 +90,14 @@ export default function AdminDashboardPage() {
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <Link
-                href="/admin/productos"
-                className="bg-[#3C50E0] hover:bg-[#2e3fb8] text-white px-3.5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 shadow-xs"
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateProductModalOpen(true)}
+                className="bg-[#3C50E0] hover:bg-[#2e3fb8] text-white px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all active:scale-98 cursor-pointer"
               >
-                <Plus size={16} /> Crear Producto
-              </Link>
+                <Camera size={16} /> Cargar Producto
+              </button>
             </div>
           </div>
 
@@ -173,6 +196,42 @@ export default function AdminDashboardPage() {
           </Card>
         </main>
       </div>
+
+      {/* Modal de Bienvenida tras Crear la Tienda */}
+      {tienda && (
+        <WelcomeModal
+          isOpen={isWelcomeModalOpen}
+          onClose={() => setIsWelcomeModalOpen(false)}
+          tienda={tienda}
+          onStartCreateProduct={() => setIsCreateProductModalOpen(true)}
+        />
+      )}
+
+      {/* Modal Reutilizable para Cargar Productos */}
+      {tienda && (
+        <CreateProductModal
+          isOpen={isCreateProductModalOpen}
+          onClose={() => setIsCreateProductModalOpen(false)}
+          tienda={tienda}
+          currentProductsCount={kpis.totalProductos}
+          onSuccess={handleProductCreated}
+          onUpgradeRequired={() => setIsUpgradeModalOpen(true)}
+        />
+      )}
+
+      {/* Modal de Upgrade */}
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => setIsUpgradeModalOpen(false)}
+      />
     </div>
+  );
+}
+
+export default function AdminDashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-xs text-gray-500">Cargando panel...</div>}>
+      <AdminDashboardContent />
+    </Suspense>
   );
 }
