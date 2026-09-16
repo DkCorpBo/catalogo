@@ -3,12 +3,13 @@ import { EstadoPedido } from '../types';
 /**
  * Formatea un monto numérico a formato de moneda (ej: $12.50 USD)
  */
-export function formatCurrency(amount: number, currency: string = 'USD'): string {
+export function formatCurrency(amount: number | string, currency: string = 'USD'): string {
+  const num = typeof amount === 'number' ? amount : Number(amount) || 0;
   const formatted = new Intl.NumberFormat('en-US', {
     style: 'decimal',
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(amount || 0);
+  }).format(num);
 
   return `$${formatted} ${currency}`;
 }
