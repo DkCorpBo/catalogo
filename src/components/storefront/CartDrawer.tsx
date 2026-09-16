@@ -169,51 +169,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           {/* Formulario de Datos del Cliente */}
           {items.length > 0 && (
-            <div className="mt-6 pt-4 border-t border-[#E2E8F0] space-y-3 bg-gray-50 p-4 rounded-xl border">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#1C2434]">
-                Datos de Entrega / Pedido
-              </h3>
-
+            <div className="mt-4 pt-3 border-t border-[#E2E8F0] space-y-2.5 bg-gray-50 p-4 rounded-xl border">
               <div>
-                <label className="block text-xs font-semibold text-[#1C2434] mb-1">
-                  Tu Nombre Completo *
+                <label className="block text-xs font-bold text-[#1C2434] mb-1">
+                  Tu Nombre (para el pedido) *
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: María Ramos"
+                  required
+                  placeholder="Ej: Carlos Ramos"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white focus:outline-hidden focus:border-[#3C50E0]"
+                  className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-[#E2E8F0] bg-white font-medium focus:outline-hidden focus:border-[#3C50E0]"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-[#1C2434] mb-1">
-                  Tu WhatsApp / Teléfono (opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: +591 70000000"
-                  value={customerPhone}
-                  onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white focus:outline-hidden focus:border-[#3C50E0]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-[#1C2434] mb-1">
-                  Dirección de Entrega / Notas
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="Ej: Av. Las Palmas #450, entregar en portería."
-                  value={customerAddress}
-                  onChange={(e) => setCustomerAddress(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-[#E2E8F0] bg-white focus:outline-hidden focus:border-[#3C50E0]"
-                />
-              </div>
-
-              {errorMsg && <p className="text-xs text-[#D34053] font-semibold">{errorMsg}</p>}
+              {errorMsg && <p className="text-xs text-[#D34053] font-bold">{errorMsg}</p>}
             </div>
           )}
         </div>

@@ -6,6 +6,7 @@ import { getTiendaBySlug } from '@/lib/services/tiendas';
 import { getProductosByTiendaId, getCategoriasByTiendaId } from '@/lib/services/productos';
 import { StoreHeader } from '@/components/storefront/Header';
 import { ProductCard } from '@/components/storefront/ProductCard';
+import { ProductDetailModal } from '@/components/storefront/ProductDetailModal';
 import { CartDrawer } from '@/components/storefront/CartDrawer';
 import { Search, ShoppingBag } from 'lucide-react';
 
@@ -24,6 +25,7 @@ export default function StorefrontPage({ params }: PageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Producto | null>(null);
   const [loading, setLoading] = useState(true);
   const [addedItemIds, setAddedItemIds] = useState<Record<string, boolean>>({});
 
@@ -46,20 +48,20 @@ export default function StorefrontPage({ params }: PageProps) {
     loadData();
   }, [slug]);
 
-  const handleAddToCart = (producto: Producto) => {
+  const handleAddToCart = (producto: Producto, cantidad: number = 1) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.producto.id === producto.id);
       if (existing) {
         return prev.map((item) =>
           item.producto.id === producto.id
-            ? { ...item, cantidad: item.cantidad + 1 }
+            ? { ...item, cantidad: item.cantidad + cantidad }
             : item
         );
       }
-      return [...prev, { producto, cantidad: 1 }];
+      return [...prev, { producto, cantidad }];
     });
 
-    // Feedback de animación en el botón
+    // Feedback visual en el botón
     setAddedItemIds((prev) => ({ ...prev, [producto.id]: true }));
     setTimeout(() => {
       setAddedItemIds((prev) => ({ ...prev, [producto.id]: false }));
@@ -88,7 +90,8 @@ export default function StorefrontPage({ params }: PageProps) {
 
   const filteredProductos = productos.filter((p) => {
     const matchesCategory = selectedCategoria ? p.categoria_id === selectedCategoria : true;
-    const matchesSearch = p.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch =
+      p.nombre.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.descripcion?.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
@@ -107,9 +110,9 @@ export default function StorefrontPage({ params }: PageProps) {
   if (!tienda) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F1F5F9] p-4">
-        <div className="text-center bg-white p-8 rounded-xl border border-[#E2E8F0] shadow-sm max-w-sm">
-          <h2 className="text-lg font-bold text-[#1C2434]">Tienda no encontrada</h2>
-          <p className="text-xs text-[#64748B] mt-2">La tienda "{slug}" no está disponible o ha sido desactivada.</p>
+        <div className="text-center bg-white p-8 rounded-2xl border border-[#E2E8F0] shadow-sm max-w-sm space-y-2">
+          <h2 className="text-lg font-black text-[#1C2434]">Tienda no encontrada</h2>
+          <p className="text-xs text-[#64748B]">La tienda "{slug}" no está disponible o ha sido desactivada.</p>
         </div>
       </div>
     );
@@ -117,14 +120,14 @@ export default function StorefrontPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-[#F1F5F9] pb-24">
-      {/* Header de la Tienda */}
+      {/* Header Público de la Tienda */}
       <StoreHeader
         tienda={tienda}
         cartCount={totalCartItemsCount}
         onOpenCart={() => setIsCartOpen(true)}
       />
 
-      {/* Banner / Buscador y Categorías */}
+      {/* Buscador y Categorías */}
       <main className="max-w-4xl mx-auto px-4 pt-6 space-y-5">
         {/* Buscador de productos */}
         <div className="relative">
@@ -169,9 +172,9 @@ export default function StorefrontPage({ params }: PageProps) {
 
         {/* Grid de Productos */}
         {filteredProductos.length === 0 ? (
-          <div className="bg-white rounded-xl border border-[#E2E8F0] p-12 text-center text-[#64748B]">
-            <p className="font-semibold text-base">No hay productos disponibles</p>
-            <p className="text-xs text-gray-400 mt-1">Intenta con otra búsqueda o categoría.</p>
+          <div className="bg-white rounded-2xl border border-[#E2E8F0] p-12 text-center text-[#64748B] space-y-1">
+            <p className="font-extrabold text-base text-[#1C2434]">No hay productos disponibles</p>
+            <p className="text-xs text-gray-400">Intenta con otra búsqueda o categoría.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -180,7 +183,8 @@ export default function StorefrontPage({ params }: PageProps) {
                 key={prod.id}
                 producto={prod}
                 currency={tienda.moneda}
-                onAddToCart={handleAddToCart}
+                onAddToCart={(p) => handleAddToCart(p, 1)}
+                onViewDetails={(p) => setSelectedProduct(p)}
                 added={!!addedItemIds[prod.id]}
               />
             ))}
@@ -193,16 +197,24 @@ export default function StorefrontPage({ params }: PageProps) {
         <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto z-40">
           <button
             onClick={() => setIsCartOpen(true)}
-            className="w-full bg-[#3C50E0] hover:bg-[#2e3fb8] text-white py-3.5 px-5 rounded-xl font-bold text-sm flex items-center justify-between shadow-xl transition-all active:scale-98"
+            className="w-full bg-[#3C50E0] hover:bg-[#2e3fb8] text-white py-3.5 px-5 rounded-xl font-bold text-sm flex items-center justify-between shadow-xl transition-all active:scale-98 cursor-pointer"
           >
             <div className="flex items-center gap-2">
               <ShoppingBag size={20} />
               <span>Ver Carrito ({totalCartItemsCount})</span>
             </div>
-            <span className="bg-white/20 px-3 py-1 rounded-lg text-xs">Ver Desglose →</span>
+            <span className="bg-white/20 px-3 py-1 rounded-lg text-xs font-bold">Ver Desglose →</span>
           </button>
         </div>
       )}
+
+      {/* Modal de Detalle y Foto Ampliada del Producto */}
+      <ProductDetailModal
+        producto={selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        currency={tienda.moneda}
+        onAddToCart={handleAddToCart}
+      />
 
       {/* Drawer / Modal del Carrito */}
       <CartDrawer

@@ -140,40 +140,61 @@ export async function getCategoriasByTiendaId(tiendaId: string): Promise<Categor
 }
 
 export async function createProducto(producto: Omit<Producto, 'id'>): Promise<Producto | null> {
-  const newId = `prod-${Date.now()}`;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(producto.tienda_id);
+  const newId = isUuid && typeof crypto !== 'undefined' && crypto.randomUUID 
+    ? crypto.randomUUID() 
+    : `prod-${Date.now()}`;
+
   const newProd: Producto = {
     ...producto,
     id: newId,
     created_at: new Date().toISOString(),
   };
 
-  // 1. Guardar en localStorage para disponibilidad instantánea
   const allProds = getLocalProductosList();
   allProds.unshift(newProd);
   saveLocalProductosList(allProds);
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
-    return newProd;
-  }
+  if (isUuid && process.env.NEXT_PUBLIC_SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
+    try {
+      const supabase = createClient();
+      const insertPayload: any = {
+        tienda_id: producto.tienda_id,
+        nombre: producto.nombre,
+        descripcion: producto.descripcion,
+        precio: producto.precio,
+        stock: producto.stock,
+        stock_minimo: producto.stock_minimo || 3,
+        imagen_url: producto.imagen_url,
+        disponible: producto.disponible,
+      };
+      if (producto.categoria_id) {
+        insertPayload.categoria_id = producto.categoria_id;
+      }
+      if (producto.costo) {
+        insertPayload.costo = producto.costo;
+      }
 
-  // 2. Intentar guardar en Supabase
-  try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('productos')
-      .insert(producto)
-      .select()
-      .single();
+      const { data, error } = await supabase
+        .from('productos')
+        .insert(insertPayload)
+        .select()
+        .single();
 
-    if (error || !data) {
-      console.warn('Advertencia al insertar en Supabase (guardado en local):', error);
-      return newProd;
+      if (data) {
+        newProd.id = data.id;
+        saveLocalProductosList(allProds);
+        return data as Producto;
+      }
+      if (error) {
+        console.error('Error insertando producto en Supabase:', error);
+      }
+    } catch (err) {
+      console.error('Error al crear producto en Supabase:', err);
     }
-    return data as Producto;
-  } catch (err) {
-    console.error('Error al crear producto en Supabase:', err);
-    return newProd;
   }
+
+  return newProd;
 }
 
 export async function updateProducto(id: string, updates: Partial<Producto>): Promise<boolean> {

@@ -84,56 +84,47 @@ export async function getAllTiendas(): Promise<Tienda[]> {
 
 export async function getTiendaBySlug(slug: string): Promise<Tienda | null> {
   const localList = getLocalTiendasList();
-  const match = localList.find((t) => t.slug === slug);
+  const match = localList.find((t) => t.slug.toLowerCase() === slug.toLowerCase());
 
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
-    if (match) return match;
-    
-    const dynamicStore: Tienda = {
-      id: `tienda-${slug}-${Date.now()}`,
-      nombre: `Tienda ${slug}`,
-      slug,
-      whatsapp_number: '59178490780',
-      moneda: 'USD',
-      activo: true,
-      plan: 'gratis',
-      max_productos: 5,
-      max_pedidos_mes: 20,
-    };
-    localList.unshift(dynamicStore);
-    saveLocalTiendasList(localList);
-    return dynamicStore;
-  }
+  if (process.env.NEXT_PUBLIC_SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('tiendas')
+        .select('*')
+        .eq('slug', slug.toLowerCase())
+        .maybeSingle();
 
-  try {
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from('tiendas')
-      .select('*')
-      .eq('slug', slug)
-      .single();
-
-    if (error || !data) {
-      if (match) return match;
-      return null;
+      if (data) {
+        const store = data as Tienda;
+        if (match) {
+          Object.assign(match, store);
+          saveLocalTiendasList(localList);
+        } else {
+          localList.unshift(store);
+          saveLocalTiendasList(localList);
+        }
+        return store;
+      }
+    } catch (err) {
+      console.error('Error al consultar tienda por slug en Supabase:', err);
     }
-
-    return data as Tienda;
-  } catch (err) {
-    console.error('Error al consultar tienda por slug:', err);
-    return match || null;
   }
+
+  if (match) return match;
+  return null;
 }
 
 export async function createNewTienda(
   data: Omit<Tienda, 'id' | 'activo' | 'plan' | 'max_productos' | 'max_pedidos_mes'>
 ): Promise<Tienda> {
   const localList = getLocalTiendasList();
-  const newId = `tienda-${Date.now()}`;
+  const newUuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'a0eebc99-9c0b-4ef8-bb6d-' + Date.now().toString(16).padStart(12, '0');
   
   const newTienda: Tienda = {
     ...data,
-    id: newId,
+    id: newUuid,
+    slug: data.slug.toLowerCase().trim(),
     activo: true,
     plan: 'gratis',
     max_productos: 5,
@@ -141,31 +132,43 @@ export async function createNewTienda(
     created_at: new Date().toISOString(),
   };
 
-  localList.unshift(newTienda);
-  saveLocalTiendasList(localList);
-
   if (process.env.NEXT_PUBLIC_SUPABASE_URL && !process.env.NEXT_PUBLIC_SUPABASE_URL.includes('placeholder')) {
     try {
       const supabase = createClient();
-      await supabase.from('tiendas').insert({
-        id: newId,
-        nombre: data.nombre,
-        slug: data.slug,
-        whatsapp_number: data.whatsapp_number,
-        descripcion: data.descripcion,
-        logo_url: data.logo_url,
-        moneda: data.moneda || 'USD',
-        plan: 'gratis',
-        max_productos: 5,
-        max_pedidos_mes: 20,
-      });
+      const { data: inserted, error } = await supabase
+        .from('tiendas')
+        .insert({
+          id: newUuid,
+          nombre: data.nombre,
+          slug: newTienda.slug,
+          whatsapp_number: data.whatsapp_number,
+          descripcion: data.descripcion,
+          logo_url: data.logo_url,
+          moneda: data.moneda || 'USD',
+          plan: 'gratis',
+          max_productos: 5,
+          max_pedidos_mes: 20,
+          activo: true,
+        })
+        .select()
+        .single();
+
+      if (inserted) {
+        newTienda.id = inserted.id;
+      }
+      if (error) {
+        console.error('Error al insertar tienda en Supabase:', error);
+      }
     } catch (err) {
       console.error('Error al insertar tienda en Supabase:', err);
     }
   }
 
+  localList.unshift(newTienda);
+  saveLocalTiendasList(localList);
+
   const newSession: SesionUsuario = {
-    userId: `user-${newId}`,
+    userId: `user-${newTienda.id}`,
     username: newTienda.slug,
     nombre: `Dueño (${newTienda.nombre})`,
     rol: 'admin_tienda',
